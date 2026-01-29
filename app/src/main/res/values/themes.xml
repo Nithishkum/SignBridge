@@ -1,0 +1,14 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.CameraXProject" parent="Theme.Material3.DayNight.NoActionBar">
+    </style>
+
+    <style name="Theme.CameraXProject" parent="Base.Theme.CameraXProject">
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="31">@drawable/sign_bridge</item>
+
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">#FFFFFF</item>
+
+        <item name="android:windowSplashScreenBrandingImage" tools:targetApi="31">@android:color/transparent</item>
+
+        <item name="android:windowSplashScreenAnimationDuration" tools:targetApi="31">1000</item>
+    </style>
+</resources>
