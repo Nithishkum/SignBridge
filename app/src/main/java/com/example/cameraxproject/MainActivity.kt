@@ -4,8 +4,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.*
 import android.os.*
+import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -30,29 +32,56 @@ import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
+import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var viewFinder: PreviewView
     private lateinit var overlayImageView: ImageView
     private lateinit var cameraExecutor: ExecutorService
     private lateinit var handLandmarker: HandLandmarker
 
-    // 🔥 Camera Control
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-    // 🔥 AI Variables
+    // AI Variables
     private lateinit var tflite: Interpreter
     private lateinit var labels: List<String>
-
     private var inputSourceWidth = 0f
     private var inputSourceHeight = 0f
     private var bitmapBuffer: Bitmap? = null
     private var canvasBuffer: Canvas? = null
 
-    // Paints
+    // UI Variables
+    private lateinit var tts: TextToSpeech
+    private lateinit var sentenceDisplay: TextView
+    private var currentLiveLabel = ""
+    private var constructedSentence = ""
+
+    // Suggestion UI
+    private lateinit var btnSuggest1: Button
+    private lateinit var btnSuggest2: Button
+    private lateinit var btnSuggest3: Button
+
+    // Animation Flag
+    private var areControlsVisible = false
+
+    // Dictionary
+    private val dictionary = listOf(
+        "HELLO", "HELP", "HOME", "HOW", "HAPPY",
+        "I", "IS", "IT", "IN", "IF",
+        "LOVE", "LIKE", "LATER",
+        "ME", "MY", "MORE", "MAN",
+        "NO", "NOT", "NEED", "NAME", "NICE",
+        "PLEASE", "PEOPLE", "PROJECT",
+        "SORRY", "SEE", "SOON",
+        "THANKS", "THAT", "THIS", "THE", "TIME", "TO",
+        "YOU", "YES", "YOUR",
+        "WHAT", "WHERE", "WHEN", "WHY", "WHO", "WATER", "WANT",
+        "GOOD", "BAD", "OK"
+    )
+
     private val textPaint = Paint().apply {
         color = Color.GREEN
         textSize = 120f
@@ -61,7 +90,6 @@ class MainActivity : AppCompatActivity() {
         setShadowLayer(10f, 0f, 0f, Color.BLACK)
     }
 
-    // ================== PERMISSION ==================
     private val reqPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
@@ -72,249 +100,244 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    // ================== ON CREATE ==================
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        // 1. Initialize Views
+        // Initialize Views
         viewFinder = findViewById(R.id.viewFinder)
         overlayImageView = findViewById(R.id.overlayImageView)
+        tts = TextToSpeech(this, this)
 
         val startScreen = findViewById<android.view.ViewGroup>(R.id.startScreenLayout)
         val startButton = findViewById<Button>(R.id.startButton)
         val loadingText = findViewById<TextView>(R.id.loadingText)
         val btnExit = findViewById<TextView>(R.id.btnExit)
-        val btnSwitchCamera = findViewById<MaterialButton>(R.id.btnSwitchCamera)
+
+        // UI elements that will be animated
+        val controlPanel = findViewById<View>(R.id.controlPanel)
+        val suggestionLayout = findViewById<View>(R.id.suggestionLayout)
+        sentenceDisplay = findViewById(R.id.sentenceDisplay)
+
+        // Toggle Button
+        val btnAccessibility = findViewById<MaterialButton>(R.id.btnAccessibility)
+
+        // Function Buttons
+        val btnAdd = findViewById<Button>(R.id.btnAdd)
+        val btnSpace = findViewById<Button>(R.id.btnSpace)
+        val btnDelete = findViewById<Button>(R.id.btnDelete)
+        val btnSpeak = findViewById<Button>(R.id.btnSpeak)
+
+        // Suggestion Logic
+        btnSuggest1 = findViewById(R.id.btnSuggest1)
+        btnSuggest2 = findViewById(R.id.btnSuggest2)
+        btnSuggest3 = findViewById(R.id.btnSuggest3)
+
+        val suggestionListener = View.OnClickListener { v ->
+            val wordToComplete = (v as Button).text.toString()
+            completeCurrentWord(wordToComplete)
+        }
+        btnSuggest1.setOnClickListener(suggestionListener)
+        btnSuggest2.setOnClickListener(suggestionListener)
+        btnSuggest3.setOnClickListener(suggestionListener)
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // 2. Load AI Models
         try {
             labels = loadLabels()
             tflite = Interpreter(loadModelFile())
         } catch (e: Exception) {
             Log.e("AI", "Error loading model", e)
-            Toast.makeText(this, "Error loading AI Model", Toast.LENGTH_SHORT).show()
         }
 
-        // 3. Setup Buttons & UI Logic
-
-        // Ensure Flip Button is HIDDEN initially
-        btnSwitchCamera.visibility = View.GONE
-
-        // Handle Switch Camera Button Click
-        btnSwitchCamera.setOnClickListener {
-            toggleCamera()
+        // --- LISTENERS ---
+        btnAdd?.setOnClickListener {
+            if (currentLiveLabel.isNotEmpty()) {
+                constructedSentence += currentLiveLabel
+                sentenceDisplay.text = constructedSentence
+                updateSuggestions()
+            }
+        }
+        btnSpace?.setOnClickListener {
+            constructedSentence += " "
+            sentenceDisplay.text = constructedSentence
+            updateSuggestions()
+        }
+        btnDelete?.setOnClickListener {
+            if (constructedSentence.isNotEmpty()) {
+                constructedSentence = constructedSentence.substring(0, constructedSentence.length - 1)
+                sentenceDisplay.text = constructedSentence
+                updateSuggestions()
+            }
+        }
+        btnSpeak?.setOnClickListener {
+            if (constructedSentence.isNotEmpty()) {
+                speakText(constructedSentence)
+            }
         }
 
-        // Simulate "loading" then show Start button
+        // --- STARTUP LOGIC ---
         Handler(Looper.getMainLooper()).postDelayed({
             loadingText?.setTextColor(Color.GREEN)
             startButton?.visibility = View.VISIBLE
         }, 500)
 
-        // Start Button Logic
         startButton?.setOnClickListener {
-            // Fade out start screen
             startScreen.animate().alpha(0f).setDuration(500).withEndAction {
                 startScreen.visibility = View.GONE
-
-                // SHOW the Flip Camera button now
-                btnSwitchCamera.visibility = View.VISIBLE
-
-                // Start Camera
+                btnAccessibility.visibility = View.VISIBLE
                 checkPermissionAndStart()
             }
         }
 
-        // Exit Button Logic
-        btnExit?.setOnClickListener {
-            finishAffinity()
+        // --- TOGGLE ANIMATION ---
+        btnAccessibility.setOnClickListener {
+            toggleControlsWithAnimation(btnAccessibility, controlPanel, suggestionLayout, sentenceDisplay)
+        }
+
+        btnExit?.setOnClickListener { finishAffinity() }
+    }
+
+    // --- ANIMATION HELPER ---
+    private fun toggleControlsWithAnimation(
+        toggleBtn: MaterialButton,
+        vararg views: View
+    ) {
+        if (areControlsVisible) {
+            // HIDE
+            views.forEach { view ->
+                view.animate()
+                    .translationY(300f)
+                    .alpha(0f)
+                    .setDuration(300)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .withEndAction { view.visibility = View.GONE }
+                    .start()
+            }
+            // 🔥 BACK TO ACCESSIBILITY ICON
+            toggleBtn.setIconResource(R.drawable.accessability)
+            areControlsVisible = false
+        } else {
+            // SHOW
+            views.forEach { view ->
+                view.visibility = View.VISIBLE
+                view.translationY = 300f
+                view.alpha = 0f
+                view.animate()
+                    .translationY(0f)
+                    .alpha(1f)
+                    .setDuration(400)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .start()
+            }
+            // 🔥 CHANGE TO CROSS (CLOSE) ICON
+            toggleBtn.setIconResource(android.R.drawable.ic_menu_close_clear_cancel)
+            areControlsVisible = true
         }
     }
 
-    // ================== AI FILES ==================
-    private fun loadLabels(): List<String> {
-        return assets.open("labels.txt").bufferedReader().readLines()
+    // ================== LOGIC (Unchanged) ==================
+    private fun updateSuggestions() {
+        val words = constructedSentence.split(" ")
+        val currentTypingWord = words.lastOrNull() ?: ""
+        if (currentTypingWord.isEmpty()) { hideSuggestions(); return }
+        val matches = dictionary.filter { it.startsWith(currentTypingWord) && it != currentTypingWord }.take(3)
+        if (matches.isNotEmpty()) { btnSuggest1.visibility = View.VISIBLE; btnSuggest1.text = matches[0] } else btnSuggest1.visibility = View.INVISIBLE
+        if (matches.size > 1) { btnSuggest2.visibility = View.VISIBLE; btnSuggest2.text = matches[1] } else btnSuggest2.visibility = View.INVISIBLE
+        if (matches.size > 2) { btnSuggest3.visibility = View.VISIBLE; btnSuggest3.text = matches[2] } else btnSuggest3.visibility = View.INVISIBLE
     }
+
+    private fun completeCurrentWord(fullWord: String) {
+        val lastSpaceIndex = constructedSentence.lastIndexOf(" ")
+        if (lastSpaceIndex == -1) constructedSentence = "$fullWord " else {
+            val prefix = constructedSentence.substring(0, lastSpaceIndex + 1)
+            constructedSentence = "$prefix$fullWord "
+        }
+        sentenceDisplay.text = constructedSentence
+        hideSuggestions()
+    }
+
+    private fun hideSuggestions() {
+        btnSuggest1.visibility = View.INVISIBLE
+        btnSuggest2.visibility = View.INVISIBLE
+        btnSuggest3.visibility = View.INVISIBLE
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) tts.setLanguage(Locale.US)
+    }
+
+    private fun speakText(text: String) {
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+    }
+
+    private fun loadLabels(): List<String> = assets.open("labels.txt").bufferedReader().readLines()
 
     private fun loadModelFile(): MappedByteBuffer {
         val fileDescriptor = assets.openFd("sign_language.tflite")
         val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
         val channel = inputStream.channel
-        return channel.map(
-            FileChannel.MapMode.READ_ONLY,
-            fileDescriptor.startOffset,
-            fileDescriptor.declaredLength
-        )
+        return channel.map(FileChannel.MapMode.READ_ONLY, fileDescriptor.startOffset, fileDescriptor.declaredLength)
     }
 
-    // ================== CAMERA LOGIC ==================
     private fun checkPermissionAndStart() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED
-        ) {
-            setupHandLandmarker()
-            startCamera()
-        } else {
-            reqPermissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
-    private fun toggleCamera() {
-        // Switch variable between Front and Back
-        cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
-            CameraSelector.DEFAULT_FRONT_CAMERA
-        } else {
-            CameraSelector.DEFAULT_BACK_CAMERA
-        }
-        // Restart camera with new selector
-        startCamera()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            setupHandLandmarker(); startCamera()
+        } else reqPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
     private fun startCamera() {
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
             val provider = providerFuture.get()
-
-            val preview = Preview.Builder()
-                .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                .build()
-                .also { it.setSurfaceProvider(viewFinder.surfaceProvider) }
-
-            val analysis = ImageAnalysis.Builder()
-                .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                .build()
-                .also {
-                    it.setAnalyzer(cameraExecutor) { proxy -> detect(proxy) }
-                }
-
-            try {
-                // Unbind previous use cases before rebinding
-                provider.unbindAll()
-
-                // Bind with the CURRENT cameraSelector (Front or Back)
-                provider.bindToLifecycle(
-                    this,
-                    cameraSelector,
-                    preview,
-                    analysis
-                )
-            } catch (e: Exception) {
-                Log.e("CameraX", "Binding failed", e)
-            }
+            val preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3).build().also { it.setSurfaceProvider(viewFinder.surfaceProvider) }
+            val analysis = ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888).build().also { it.setAnalyzer(cameraExecutor) { proxy -> detect(proxy) } }
+            try { provider.unbindAll(); provider.bindToLifecycle(this, cameraSelector, preview, analysis) } catch (e: Exception) { Log.e("CameraX", "Binding failed", e) }
         }, ContextCompat.getMainExecutor(this))
     }
 
     private fun setupHandLandmarker() {
-        val baseOptions = BaseOptions.builder()
-            .setModelAssetPath("hand_landmarker.task")
-            .setDelegate(Delegate.GPU)
-            .build()
-
-        val options = HandLandmarker.HandLandmarkerOptions.builder()
-            .setBaseOptions(baseOptions)
-            .setRunningMode(RunningMode.LIVE_STREAM)
-            .setResultListener { result, _ ->
-                runOnUiThread { drawSkeletonAndPredict(result) }
-            }
-            .build()
-
+        val baseOptions = BaseOptions.builder().setModelAssetPath("hand_landmarker.task").setDelegate(Delegate.GPU).build()
+        val options = HandLandmarker.HandLandmarkerOptions.builder().setBaseOptions(baseOptions).setRunningMode(RunningMode.LIVE_STREAM).setResultListener { result, _ -> runOnUiThread { drawSkeletonAndPredict(result) } }.build()
         handLandmarker = HandLandmarker.createFromOptions(this, options)
     }
 
     private fun detect(proxy: ImageProxy) {
-        if (!::handLandmarker.isInitialized) {
-            proxy.close()
-            return
-        }
-
+        if (!::handLandmarker.isInitialized) { proxy.close(); return }
         val bitmap = proxy.toBitmap()
         val matrix = Matrix().apply {
             postRotate(proxy.imageInfo.rotationDegrees.toFloat())
-
-            // If using Front Camera, mirror the image horizontally so it feels natural
-            if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
-                postScale(-1f, 1f, bitmap.width / 2f, bitmap.height / 2f)
-            }
+            if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) postScale(-1f, 1f, bitmap.width / 2f, bitmap.height / 2f)
         }
         val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-
-        inputSourceWidth = rotated.width.toFloat()
-        inputSourceHeight = rotated.height.toFloat()
-
+        inputSourceWidth = rotated.width.toFloat(); inputSourceHeight = rotated.height.toFloat()
         val mpImage = BitmapImageBuilder(rotated).build()
         handLandmarker.detectAsync(mpImage, SystemClock.uptimeMillis())
-
         proxy.close()
     }
 
     private fun predictSign(landmarks: List<NormalizedLandmark>): String {
-        // 🛑 SAFETY CHECK: If model isn't loaded, stop here.
-        if (!::tflite.isInitialized || !::labels.isInitialized) {
-            return "Loading AI..."
-        }
-
-        // 1. Prepare Input
+        if (!::tflite.isInitialized || !::labels.isInitialized) return "..."
         val input = Array(1) { FloatArray(63) }
         var i = 0
-        for (lm in landmarks) {
-            input[0][i++] = lm.x()
-            input[0][i++] = lm.y()
-            input[0][i++] = lm.z()
-        }
-
-        // 2. Prepare Output
+        for (lm in landmarks) { input[0][i++] = lm.x(); input[0][i++] = lm.y(); input[0][i++] = lm.z() }
         val output = Array(1) { FloatArray(labels.size) }
-
-        // 3. Run Inference
-        try {
-            tflite.run(input, output)
-        } catch (e: Exception) {
-            Log.e("AI", "Inference Failed", e)
-            return "AI Error"
-        }
-
-        // 4. Find Best Match
+        tflite.run(input, output)
         val maxIndex = output[0].indices.maxByOrNull { output[0][it] } ?: -1
-
-        if (maxIndex != -1 && output[0][maxIndex] > 0.5f) {
-            return labels[maxIndex]
-        } else {
-            return ""
-        }
+        return if (maxIndex != -1 && output[0][maxIndex] > 0.5f) labels[maxIndex] else ""
     }
 
-    // ================== DRAWING ==================
     private fun drawSkeletonAndPredict(result: HandLandmarkerResult) {
-        if (bitmapBuffer == null) {
-            bitmapBuffer = Bitmap.createBitmap(
-                viewFinder.width,
-                viewFinder.height,
-                Bitmap.Config.ARGB_8888
-            )
-            canvasBuffer = Canvas(bitmapBuffer!!)
-        }
-
+        if (bitmapBuffer == null) { bitmapBuffer = Bitmap.createBitmap(viewFinder.width, viewFinder.height, Bitmap.Config.ARGB_8888); canvasBuffer = Canvas(bitmapBuffer!!) }
         canvasBuffer!!.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-
-        // Only draw if hands are detected
+        if (result.landmarks().isEmpty()) currentLiveLabel = ""
         result.landmarks().forEach { landmarks ->
             val sign = predictSign(landmarks)
-
-            canvasBuffer!!.drawText(
-                sign,
-                viewFinder.width / 2f,
-                200f,
-                textPaint
-            )
+            currentLiveLabel = sign
+            canvasBuffer!!.drawText(sign, viewFinder.width / 2f, 200f, textPaint)
         }
-
         overlayImageView.setImageBitmap(bitmapBuffer)
     }
 
@@ -323,5 +346,6 @@ class MainActivity : AppCompatActivity() {
         if (::handLandmarker.isInitialized) handLandmarker.close()
         if (::cameraExecutor.isInitialized) cameraExecutor.shutdown()
         if (::tflite.isInitialized) tflite.close()
+        if (::tts.isInitialized) tts.shutdown()
     }
 }
