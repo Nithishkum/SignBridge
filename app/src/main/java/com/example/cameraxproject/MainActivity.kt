@@ -45,7 +45,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-    // AI Variables
     private lateinit var tflite: Interpreter
     private lateinit var labels: List<String>
     private var inputSourceWidth = 0f
@@ -53,33 +52,23 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var bitmapBuffer: Bitmap? = null
     private var canvasBuffer: Canvas? = null
 
-    // UI Variables
     private lateinit var tts: TextToSpeech
     private lateinit var sentenceDisplay: TextView
     private var currentLiveLabel = ""
     private var constructedSentence = ""
 
-    // Suggestion UI
     private lateinit var btnSuggest1: Button
     private lateinit var btnSuggest2: Button
     private lateinit var btnSuggest3: Button
 
-    // Animation Flag
     private var areControlsVisible = false
 
-    // Dictionary
     private val dictionary = listOf(
-        "HELLO", "HELP", "HOME", "HOW", "HAPPY",
-        "I", "IS", "IT", "IN", "IF",
-        "LOVE", "LIKE", "LATER",
-        "ME", "MY", "MORE", "MAN",
-        "NO", "NOT", "NEED", "NAME", "NICE",
-        "PLEASE", "PEOPLE", "PROJECT",
-        "SORRY", "SEE", "SOON",
-        "THANKS", "THAT", "THIS", "THE", "TIME", "TO",
-        "YOU", "YES", "YOUR",
-        "WHAT", "WHERE", "WHEN", "WHY", "WHO", "WATER", "WANT",
-        "GOOD", "BAD", "OK"
+        "HELLO", "HELP", "HOME", "HOW", "HAPPY", "I", "IS", "IT", "IN", "IF",
+        "LOVE", "LIKE", "LATER", "ME", "MY", "MORE", "MAN", "NO", "NOT", "NEED",
+        "NAME", "NICE", "PLEASE", "PEOPLE", "PROJECT", "SORRY", "SEE", "SOON",
+        "THANKS", "THAT", "THIS", "THE", "TIME", "TO", "YOU", "YES", "YOUR",
+        "WHAT", "WHERE", "WHEN", "WHY", "WHO", "WATER", "WANT", "GOOD", "BAD", "OK"
     )
 
     private val textPaint = Paint().apply {
@@ -90,15 +79,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         setShadowLayer(10f, 0f, 0f, Color.BLACK)
     }
 
-    private val reqPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                setupHandLandmarker()
-                startCamera()
-            } else {
-                Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
-            }
-        }
+    private val reqPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) { setupHandLandmarker(); startCamera() } else Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -106,7 +89,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        // Initialize Views
         viewFinder = findViewById(R.id.viewFinder)
         overlayImageView = findViewById(R.id.overlayImageView)
         tts = TextToSpeech(this, this)
@@ -114,31 +96,26 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val startScreen = findViewById<android.view.ViewGroup>(R.id.startScreenLayout)
         val startButton = findViewById<Button>(R.id.startButton)
         val loadingText = findViewById<TextView>(R.id.loadingText)
-        val btnExit = findViewById<TextView>(R.id.btnExit)
+        val btnExit = findViewById<View>(R.id.btnExit)
 
-        // UI elements that will be animated
+        // UI Containers
+        val topDisplayLayout = findViewById<View>(R.id.topDisplayLayout)
         val controlPanel = findViewById<View>(R.id.controlPanel)
         val suggestionLayout = findViewById<View>(R.id.suggestionLayout)
         sentenceDisplay = findViewById(R.id.sentenceDisplay)
 
-        // Toggle Button
         val btnAccessibility = findViewById<MaterialButton>(R.id.btnAccessibility)
-
-        // Function Buttons
         val btnAdd = findViewById<Button>(R.id.btnAdd)
         val btnSpace = findViewById<Button>(R.id.btnSpace)
         val btnDelete = findViewById<Button>(R.id.btnDelete)
+        val btnClear = findViewById<Button>(R.id.btnClear)
         val btnSpeak = findViewById<Button>(R.id.btnSpeak)
 
-        // Suggestion Logic
         btnSuggest1 = findViewById(R.id.btnSuggest1)
         btnSuggest2 = findViewById(R.id.btnSuggest2)
         btnSuggest3 = findViewById(R.id.btnSuggest3)
 
-        val suggestionListener = View.OnClickListener { v ->
-            val wordToComplete = (v as Button).text.toString()
-            completeCurrentWord(wordToComplete)
-        }
+        val suggestionListener = View.OnClickListener { v -> completeCurrentWord((v as Button).text.toString()) }
         btnSuggest1.setOnClickListener(suggestionListener)
         btnSuggest2.setOnClickListener(suggestionListener)
         btnSuggest3.setOnClickListener(suggestionListener)
@@ -148,11 +125,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         try {
             labels = loadLabels()
             tflite = Interpreter(loadModelFile())
-        } catch (e: Exception) {
-            Log.e("AI", "Error loading model", e)
-        }
+        } catch (e: Exception) { Log.e("AI", "Error loading model", e) }
 
-        // --- LISTENERS ---
+        // --- BUTTON ACTIONS ---
         btnAdd?.setOnClickListener {
             if (currentLiveLabel.isNotEmpty()) {
                 constructedSentence += currentLiveLabel
@@ -172,10 +147,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 updateSuggestions()
             }
         }
+        btnClear?.setOnClickListener {
+            constructedSentence = ""
+            sentenceDisplay.text = ""
+            hideSuggestions()
+        }
         btnSpeak?.setOnClickListener {
-            if (constructedSentence.isNotEmpty()) {
-                speakText(constructedSentence)
-            }
+            if (constructedSentence.isNotEmpty()) speakText(constructedSentence)
         }
 
         // --- STARTUP LOGIC ---
@@ -194,19 +172,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         // --- TOGGLE ANIMATION ---
         btnAccessibility.setOnClickListener {
-            toggleControlsWithAnimation(btnAccessibility, controlPanel, suggestionLayout, sentenceDisplay)
+            toggleControlsWithAnimation(btnAccessibility, controlPanel, suggestionLayout, topDisplayLayout)
         }
 
         btnExit?.setOnClickListener { finishAffinity() }
     }
 
-    // --- ANIMATION HELPER ---
-    private fun toggleControlsWithAnimation(
-        toggleBtn: MaterialButton,
-        vararg views: View
-    ) {
+    private fun toggleControlsWithAnimation(toggleBtn: MaterialButton, vararg views: View) {
         if (areControlsVisible) {
-            // HIDE
             views.forEach { view ->
                 view.animate()
                     .translationY(300f)
@@ -216,11 +189,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     .withEndAction { view.visibility = View.GONE }
                     .start()
             }
-            // 🔥 BACK TO ACCESSIBILITY ICON
             toggleBtn.setIconResource(R.drawable.accessability)
             areControlsVisible = false
         } else {
-            // SHOW
             views.forEach { view ->
                 view.visibility = View.VISIBLE
                 view.translationY = 300f
@@ -232,13 +203,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     .setInterpolator(AccelerateDecelerateInterpolator())
                     .start()
             }
-            // 🔥 CHANGE TO CROSS (CLOSE) ICON
             toggleBtn.setIconResource(android.R.drawable.ic_menu_close_clear_cancel)
             areControlsVisible = true
         }
     }
 
-    // ================== LOGIC (Unchanged) ==================
     private fun updateSuggestions() {
         val words = constructedSentence.split(" ")
         val currentTypingWord = words.lastOrNull() ?: ""
@@ -251,10 +220,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun completeCurrentWord(fullWord: String) {
         val lastSpaceIndex = constructedSentence.lastIndexOf(" ")
-        if (lastSpaceIndex == -1) constructedSentence = "$fullWord " else {
-            val prefix = constructedSentence.substring(0, lastSpaceIndex + 1)
-            constructedSentence = "$prefix$fullWord "
-        }
+        constructedSentence = if (lastSpaceIndex == -1) "$fullWord " else "${constructedSentence.substring(0, lastSpaceIndex + 1)}$fullWord "
         sentenceDisplay.text = constructedSentence
         hideSuggestions()
     }
@@ -265,21 +231,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         btnSuggest3.visibility = View.INVISIBLE
     }
 
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) tts.setLanguage(Locale.US)
-    }
+    override fun onInit(status: Int) { if (status == TextToSpeech.SUCCESS) tts.setLanguage(Locale.US) }
 
-    private fun speakText(text: String) {
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
-    }
+    private fun speakText(text: String) { tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null) }
 
     private fun loadLabels(): List<String> = assets.open("labels.txt").bufferedReader().readLines()
 
     private fun loadModelFile(): MappedByteBuffer {
-        val fileDescriptor = assets.openFd("sign_language.tflite")
-        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
-        val channel = inputStream.channel
-        return channel.map(FileChannel.MapMode.READ_ONLY, fileDescriptor.startOffset, fileDescriptor.declaredLength)
+        val fd = assets.openFd("sign_language.tflite")
+        return FileInputStream(fd.fileDescriptor).channel.map(FileChannel.MapMode.READ_ONLY, fd.startOffset, fd.declaredLength)
     }
 
     private fun checkPermissionAndStart() {

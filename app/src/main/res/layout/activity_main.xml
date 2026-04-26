@@ -26,29 +26,51 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <TextView
-        android:id="@+id/sentenceDisplay"
-        android:layout_width="300dp"
+    <LinearLayout
+        android:id="@+id/topDisplayLayout"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-
         android:layout_marginTop="100dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-
-        android:background="@drawable/rounded_bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         android:visibility="gone"
-
-        android:gravity="center"
-        android:hint="Constructed Sentence..."
-        android:padding="16dp"
-        android:textColor="#FFFFFF"
-        android:textColorHint="#AAAAAA"
-        android:textSize="18sp"
-        android:textStyle="bold"
-
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/sentenceDisplay"
+            android:layout_width="260dp"
+            android:layout_height="wrap_content"
+            android:background="@drawable/rounded_bg"
+            android:gravity="center"
+            android:hint="Constructed Sentence..."
+            android:padding="16dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#AAAAAA"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnClear"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/border_round"
+            android:contentDescription="Clear All"
+            android:insetLeft="0dp"
+            android:insetTop="0dp"
+            android:insetRight="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:backgroundTint="#AA000000"
+            app:cornerRadius="25dp"
+            app:icon="@android:drawable/ic_menu_revert"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:iconSize="24dp"
+            app:iconTint="#FF5555" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/suggestionLayout"
@@ -58,10 +80,9 @@
         android:orientation="horizontal"
         android:padding="8dp"
         android:visibility="gone"
-
         app:layout_constraintBottom_toTopOf="@+id/controlPanel"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
         <Button
             android:id="@+id/btnSuggest1"
@@ -95,37 +116,30 @@
         android:id="@+id/controlPanel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-
-        android:layout_marginBottom="24dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-
+        android:layout_marginBottom="16dp"
         android:background="@drawable/panel_bg"
-        android:padding="12dp"
-
         android:gravity="center"
         android:orientation="horizontal"
+        android:padding="8dp"
         android:visibility="gone"
-
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintBottom_toTopOf="@id/btnAccessibility"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAdd"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_margin="8dp"
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:layout_margin="4dp"
             android:background="@drawable/border_round"
             android:contentDescription="Add"
-
-            app:backgroundTint="@null"
-            app:cornerRadius="30dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
             android:insetLeft="0dp"
+            android:insetTop="0dp"
             android:insetRight="0dp"
-
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:backgroundTint="@null"
+            app:cornerRadius="28dp"
             app:icon="@drawable/add"
             app:iconGravity="textStart"
             app:iconPadding="0dp"
@@ -134,19 +148,18 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnDelete"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_margin="8dp"
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:layout_margin="4dp"
             android:background="@drawable/border_round"
             android:contentDescription="Delete"
-
-            app:backgroundTint="@null"
-            app:cornerRadius="30dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
             android:insetLeft="0dp"
+            android:insetTop="0dp"
             android:insetRight="0dp"
-
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:backgroundTint="@null"
+            app:cornerRadius="28dp"
             app:icon="@drawable/delete"
             app:iconGravity="textStart"
             app:iconPadding="0dp"
@@ -155,19 +168,18 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSpace"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_margin="8dp"
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:layout_margin="4dp"
             android:background="@drawable/border_round"
             android:contentDescription="Space"
-
-            app:backgroundTint="@null"
-            app:cornerRadius="30dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
             android:insetLeft="0dp"
+            android:insetTop="0dp"
             android:insetRight="0dp"
-
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:backgroundTint="@null"
+            app:cornerRadius="28dp"
             app:icon="@drawable/space"
             app:iconGravity="textStart"
             app:iconPadding="0dp"
@@ -176,78 +188,69 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSpeak"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_margin="8dp"
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:layout_margin="4dp"
             android:background="@drawable/border_round"
             android:contentDescription="Speak"
-
-            app:backgroundTint="@null"
-            app:cornerRadius="30dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
             android:insetLeft="0dp"
+            android:insetTop="0dp"
             android:insetRight="0dp"
-
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:backgroundTint="@null"
+            app:cornerRadius="28dp"
             app:icon="@drawable/speak"
             app:iconGravity="textStart"
             app:iconPadding="0dp"
             app:iconSize="24dp"
             app:iconTint="#FFFFFF" />
-
     </LinearLayout>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnAccessibility"
         android:layout_width="60dp"
         android:layout_height="60dp"
-
-        android:layout_marginEnd="20dp"
         android:layout_marginBottom="30dp"
-
         android:background="@drawable/border_round"
         android:contentDescription="Toggle Controls"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:padding="0dp"
         android:visibility="gone"
-
         app:backgroundTint="@null"
         app:cornerRadius="30dp"
-        android:insetTop="0dp"
-        android:insetBottom="0dp"
-        android:insetLeft="0dp"
-        android:insetRight="0dp"
-
         app:icon="@drawable/accessability"
-        app:iconGravity="textEnd"
+        app:iconGravity="textStart"
         app:iconPadding="0dp"
-        app:iconSize="24dp"
+        app:iconSize="28dp"
         app:iconTint="#FFFFFF"
-
-        app:layout_constraintBottom_toTopOf="@id/controlPanel"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_goneMarginBottom="30dp"/>
+        app:layout_constraintStart_toStartOf="parent" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnExit"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        android:layout_marginEnd="16dp"
         android:layout_marginTop="40dp"
+        android:layout_marginEnd="16dp"
+        android:contentDescription="Exit Application"
         android:elevation="10dp"
-
-        android:contentDescription="Exit App"
-
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:padding="0dp"
         app:backgroundTint="#60000000"
         app:cornerRadius="25dp"
-        android:insetTop="0dp"
-        android:insetBottom="0dp"
-        android:insetLeft="0dp"
-        android:insetRight="0dp"
-
         app:icon="@android:drawable/ic_menu_close_clear_cancel"
-        app:iconTint="#FF0000"
-        app:iconSize="24dp"
         app:iconGravity="textStart"
         app:iconPadding="0dp"
+        app:iconSize="24dp"
+        app:iconTint="#FF0000"
 
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -266,7 +269,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"
-            android:letterSpacing="0.1"
             android:text="Loading Model..."
             android:textColor="#00FFFF"
             android:textSize="24sp"
@@ -280,8 +282,6 @@
             android:layout_centerHorizontal="true"
             android:layout_marginTop="-100dp"
             android:background="@drawable/btn_rounded_cyan"
-            android:elevation="15dp"
-            android:stateListAnimator="@animator/btn_press_anim"
             android:text="START"
             android:textColor="@color/white"
             android:textSize="40sp"
